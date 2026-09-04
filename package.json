@@ -1,0 +1,18 @@
+{
+  "name": "forge-qwen-cli",
+  "version": "0.1.0",
+  "description": "Agente de terminal de Axon Studio — CLI local para tareas de código usando Qwen 3.8 27B vía Cloudflare Workers AI.",
+  "type": "module",
+  "bin": {
+    "forge-qwen": "./bin/forge-qwen.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node ./bin/forge-qwen.js"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "author": "Axon Studio"
+}
