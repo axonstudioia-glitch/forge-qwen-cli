@@ -92,9 +92,46 @@ herramienta y sigue razonando a partir de ahí (no se cae, no reintenta la
 misma acción sin que el modelo decida hacerlo de nuevo).
 
 `run_bash` corre con un timeout de 60s y buffer de salida de 5MB — un
-comando colgado o con salida enorme no cuelga el proceso indefinidamente,
-pero **no hay sandboxing**: el comando corre con los mismos permisos que tu
-usuario. No lo uses en tareas que no puedas revisar antes de aprobar.
+comando colgado o con salida enorme no cuelga el proceso indefinidamente.
+
+### Lista negra de `run_bash` (v0.2.0) — qué protege y qué NO
+
+`src/security/blacklist.js` bloquea, con un `throw` antes de ejecutar
+cualquier cosa, comandos que coincidan con estos patrones: `sudo`; `rm`
+con borrado recursivo forzado (`-rf`/`-fr`/`-r -f`/`--recursive
+--force`, **sin importar la ruta destino** — bloquea también `rm -rf
+./node_modules`, no solo `rm -rf /`); fork bombs; `mkfs`/`dd of=/dev/...`
+(formateo o escritura directa a un dispositivo de disco); `curl`/`wget`
+seguido de `| bash`/`| sh` (descargar y ejecutar código remoto sin poder
+revisarlo); y escrituras a `/etc/passwd`, `/etc/shadow`, `/etc/sudoers` o
+`/etc/environment`. Este bloqueo aplica **incluso si el usuario ya
+respondió "s"** a la confirmación — es una segunda barrera independiente
+del criterio humano en ese momento, no un reemplazo de la confirmación.
+
+Qué **NO** protege esto, para ser honestos sobre el alcance real:
+
+- **No es sandboxing real.** Es texto contra unos patrones (regex sobre el
+  comando completo), no un parser de shell ni un aislamiento a nivel de
+  sistema operativo. El comando sigue corriendo con los mismos permisos
+  que tu usuario, en tu filesystem real, fuera de la lista negra.
+- **Se puede evadir con ofuscación deliberada** (variables de shell,
+  encoding, comandos armados dinámicamente, alias, etc.) — esto protege
+  contra el caso común de "el modelo propuso o el humano aprobó por error
+  un comando obviamente peligroso", no contra un ataque activo diseñado
+  para esquivar los patrones.
+- **La lista es corta a propósito** ("mínimo viable" pedido por Vance)
+  — hay muchísimas formas de causar daño que no cubre (por ejemplo,
+  borrar archivos uno por uno sin `-rf`, o modificar código fuente de
+  forma destructiva). Sigue sin haber sandboxing de directorio de trabajo,
+  usuario restringido, ni contenedor.
+- El bloqueo de `rm -rf` es deliberadamente amplio (bloquea rutas
+  legítimas de proyecto, no solo rutas peligrosas como `/` o `~`) porque
+  distinguir "ruta segura" de "ruta peligrosa" por texto es fácil de
+  burlar sin querer — se prefiere sobre-bloquear a razonar mal.
+
+No uses `run_bash` en tareas que no puedas revisar antes de aprobar. Esta
+lista negra reduce el peor de los casos por accidente, no reemplaza el
+juicio del humano que confirma cada acción.
 
 ## Manejo de errores de Cloudflare/API
 
@@ -104,14 +141,16 @@ errores 4xx de configuración (credenciales inválidas, modelo no disponible
 en tu plan, etc.) — esos no se arreglan reintentando, se reportan de
 inmediato con el mensaje de error de Cloudflare.
 
-## Limitaciones conocidas (v0.1.0)
+## Limitaciones conocidas (v0.2.0)
 
 - Sin memoria entre invocaciones — cada `forge-qwen "tarea"` es una sesión
   nueva desde cero.
 - `edit_file` exige que el texto a reemplazar aparezca exactamente una vez
   en el archivo (evita ediciones ambiguas, pero puede requerir dar más
   contexto en textos repetidos).
-- Sin sandboxing de `run_bash` — ver sección de Seguridad arriba.
+- Sin sandboxing real de `run_bash` (solo timeout/buffer + lista negra de
+  patrones peligrosos) — ver sección de Seguridad arriba para el detalle
+  exacto de qué protege y qué no.
 - Límite de 20 turnos de herramienta por tarea (`MAX_TURNS` en
   `src/agent/loop.js`) — tareas muy largas se detienen con un error en vez
   de ciclar indefinidamente.
@@ -121,13 +160,14 @@ inmediato con el mensaje de error de Cloudflare.
 ## Estructura del proyecto
 
 ```
-bin/forge-qwen.js         CLI: parseo de comandos, loop de impresión en consola
-src/agent/loop.js         Lógica del agente (bucle de conversación con el modelo)
-src/tools/definitions.js  Definiciones de herramientas expuestas al modelo
-src/execution/local.js    Capa de ejecución: implementa cada herramienta contra fs/shell local
-src/security/confirm.js   Confirmación sí/no antes de acciones que modifican el sistema
-src/client/workersAI.js   Cliente REST de Cloudflare Workers AI (con reintentos)
-src/config/config.js      Config y sesión en ~/.forge-qwen/
+bin/forge-qwen.js          CLI: parseo de comandos, loop de impresión en consola
+src/agent/loop.js          Lógica del agente (bucle de conversación con el modelo)
+src/tools/definitions.js   Definiciones de herramientas expuestas al modelo
+src/execution/local.js     Capa de ejecución: implementa cada herramienta contra fs/shell local
+src/security/confirm.js    Confirmación sí/no antes de acciones que modifican el sistema
+src/security/blacklist.js  Lista negra de comandos peligrosos para run_bash (segunda barrera, post-confirmación)
+src/client/workersAI.js    Cliente REST de Cloudflare Workers AI (con reintentos)
+src/config/config.js       Config y sesión en ~/.forge-qwen/
 ```
 
 ## Estándar Axon

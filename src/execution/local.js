@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { checkCommand } from '../security/blacklist.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -46,6 +47,17 @@ async function listDirectoryTool(args) {
 }
 
 async function runBashTool(args) {
+  // Se revisa aquí, DESPUÉS de la confirmación del usuario, a propósito: es
+  // una segunda barrera independiente del criterio humano en el momento de
+  // aprobar. Un "sí" nunca hace que esto se salte.
+  const check = checkCommand(args.command);
+  if (check.blocked) {
+    throw new Error(
+      `Comando bloqueado por la lista negra de seguridad (${check.name}): ${check.reason} ` +
+        'Este agente no ejecuta este tipo de comando bajo ninguna circunstancia, ni siquiera si el usuario ya lo aprobó.'
+    );
+  }
+
   try {
     const { stdout, stderr } = await execFileAsync('bash', ['-c', args.command], {
       timeout: 60_000,
