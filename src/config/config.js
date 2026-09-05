@@ -44,10 +44,34 @@ function getModel() {
   return config.model || '@cf/qwen/qwen3.8-27b';
 }
 
+// Config del remote de rclone que apunta al Drive de Axon, y la ruta dentro
+// de ese remote al documento de contexto que se inyecta al arrancar (Fase
+// 1.5, brief "ContextoDriveCloudflareGithub"). Ambos quedan sin valor por
+// default a propósito — todavía no hay acuerdo de a qué documento apuntar
+// (ver README, sección Contexto de Axon). Sin configurar, forge-qwen-cli
+// simplemente avisa que corre sin contexto de Axon, nunca falla en silencio.
+function getDriveContextConfig() {
+  const config = loadConfig();
+  return {
+    driveRemote: config.driveRemote || null,
+    protocolPath: config.protocolPath || null,
+  };
+}
+
 function saveSessionEntry(entry) {
   ensureConfigDir();
   const file = path.join(HISTORY_DIR, `${new Date().toISOString().slice(0, 10)}.jsonl`);
   fs.appendFileSync(file, JSON.stringify(entry) + '\n');
 }
 
-export { CONFIG_DIR, CONFIG_FILE, HISTORY_DIR, loadConfig, saveConfig, getCredentials, getModel, saveSessionEntry };
+export {
+  CONFIG_DIR,
+  CONFIG_FILE,
+  HISTORY_DIR,
+  loadConfig,
+  saveConfig,
+  getCredentials,
+  getModel,
+  getDriveContextConfig,
+  saveSessionEntry,
+};

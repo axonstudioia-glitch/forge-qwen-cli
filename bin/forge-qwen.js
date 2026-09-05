@@ -3,7 +3,8 @@ import readline from 'node:readline';
 import { runAgent } from '../src/agent/loop.js';
 import { EXECUTORS } from '../src/execution/local.js';
 import { confirmAction } from '../src/security/confirm.js';
-import { getCredentials, getModel, loadConfig, saveConfig, saveSessionEntry, CONFIG_FILE } from '../src/config/config.js';
+import { getCredentials, getModel, getDriveContextConfig, loadConfig, saveConfig, saveSessionEntry, CONFIG_FILE } from '../src/config/config.js';
+import { loadAxonContext } from '../src/context/axonProtocol.js';
 
 async function setupCommand() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -19,6 +20,30 @@ async function setupCommand() {
   config.apiToken = apiToken.trim();
   saveConfig(config);
   console.log('Listo. Configuración guardada.');
+}
+
+async function setupDriveCommand() {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const ask = (q) => new Promise((resolve) => rl.question(q, resolve));
+
+  console.log(
+    'Configuración del contexto de Axon Studio (Fase 1.5) — requiere rclone ya\n' +
+      'configurado con un remote hacia el Drive de Axon (rclone config, una sola\n' +
+      'vez, fuera de este comando). Deja en blanco para no configurar nada todavía.'
+  );
+  const driveRemote = await ask('Nombre del remote de rclone (ej. axon-drive): ');
+  const protocolPath = await ask('Ruta dentro del remote al documento de contexto: ');
+  rl.close();
+
+  const config = loadConfig();
+  config.driveRemote = driveRemote.trim() || undefined;
+  config.protocolPath = protocolPath.trim() || undefined;
+  saveConfig(config);
+  console.log(
+    config.driveRemote && config.protocolPath
+      ? 'Listo. forge-qwen intentará leer ese documento al arrancar cada tarea.'
+      : 'Sin configurar — forge-qwen seguirá avisando explícitamente que opera sin contexto de Axon.'
+  );
 }
 
 async function executeTool(name, args) {
@@ -38,6 +63,15 @@ async function taskCommand(task) {
 
   console.log(`\nForge-Qwen (${model})\nTarea: ${task}\n`);
 
+  // Contexto de Axon Studio (Fase 1.5) — se intenta SIEMPRE al arrancar, y
+  // si falla se avisa explícito, nunca en silencio (sección 1.4 del brief).
+  const axonResult = await loadAxonContext(getDriveContextConfig());
+  if (!axonResult.ok) {
+    console.warn(`⚠️  ${axonResult.message}`);
+  } else {
+    console.log(`Contexto de Axon Studio cargado desde ${axonResult.source}.`);
+  }
+
   const result = await runAgent({
     task,
     accountId,
@@ -45,6 +79,7 @@ async function taskCommand(task) {
     model,
     executeTool,
     confirmTool: confirmAction,
+    axonContext: axonResult.ok ? axonResult.content : null,
     onEvent: (event) => {
       if (event.type === 'tool_call') {
         console.log(`\n→ Herramienta: ${event.name}(${JSON.stringify(event.args)})`);
@@ -80,9 +115,15 @@ async function main() {
     return;
   }
 
+  if (command === 'setup-drive') {
+    await setupDriveCommand();
+    return;
+  }
+
   if (!command || command === '--help' || command === '-h') {
     console.log(`Uso:
   forge-qwen setup              Configura credenciales de Cloudflare
+  forge-qwen setup-drive        Configura el contexto de Axon Studio (Fase 1.5, opcional)
   forge-qwen "<tarea>"          Ejecuta una tarea de código
 `);
     return;

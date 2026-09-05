@@ -43,6 +43,43 @@ const DANGEROUS_PATTERNS = [
     regex: /(>{1,2}|\btee\b)[^\n]*\/etc\/(passwd|shadow|sudoers|environment)\b/i,
     reason: 'Escritura directa a un archivo crítico del sistema (/etc/passwd, /etc/shadow, /etc/sudoers, /etc/environment).',
   },
+
+  // --- Fase 1.5 (05-sep-2026): gh/wrangler/rclone ahora son alcanzables vía
+  // run_bash. Lista NO cerrada a propósito (así lo pide el brief) — Vance
+  // revisa si falta algún patrón obvio antes de aprobar.
+
+  {
+    name: 'gh_repo_delete',
+    regex: /\bgh\s+repo\s+delete\b/i,
+    reason: 'Borra un repositorio completo de GitHub — irreversible.',
+  },
+  {
+    name: 'gh_api_delete',
+    regex: /\bgh\s+api\b[^\n]*(-X\s*DELETE|--method[=\s]+DELETE)/i,
+    reason: 'Llamada a la API de GitHub con método DELETE — puede borrar cualquier recurso de producción según el endpoint.',
+  },
+  {
+    name: 'wrangler_d1_destructive',
+    regex: /\bwrangler\s+d1\s+execute\b[^\n]*\b(DROP|DELETE)\b/i,
+    reason: 'wrangler d1 execute con DROP/DELETE — modifica datos de producción en D1 sin una segunda confirmación específica.',
+  },
+  {
+    name: 'wrangler_delete_resource',
+    regex: /\bwrangler\s+(r2\s+bucket\s+delete|kv:namespace\s+delete|pages\s+project\s+delete|d1\s+delete)\b/i,
+    reason: 'Borra un recurso completo de Cloudflare (bucket R2, namespace KV, proyecto Pages, o base D1) — irreversible.',
+  },
+  {
+    name: 'rclone_purge',
+    regex: /\brclone\s+purge\b/i,
+    reason: 'rclone purge borra una carpeta completa de Drive, incluso si no está vacía, sin posibilidad de recuperarla vía la papelera de rclone.',
+  },
+  {
+    name: 'rclone_delete_root',
+    // Bloquea "rclone delete remote:" o "rclone delete remote:/" — el
+    // remote entero como destino, sin ninguna subcarpeta específica.
+    regex: /\brclone\s+delete\s+[\w.-]+:\s*\/?\s*(--|$)/im,
+    reason: 'rclone delete apuntando a la raíz del remote de Drive, sin una subcarpeta específica.',
+  },
 ];
 
 // Revisa un comando contra la lista negra. No ejecuta nada, solo evalúa texto.

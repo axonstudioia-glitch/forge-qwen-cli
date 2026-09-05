@@ -16,11 +16,19 @@ const MAX_TURNS = 20;
  * reutilizarse con otra capa de ejecución en el futuro (Fase 2: GitHub API)
  * sin reescribir esta lógica.
  */
-async function runAgent({ task, accountId, apiToken, model, executeTool, confirmTool, onEvent = () => {} }) {
-  const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    { role: 'user', content: task },
-  ];
+async function runAgent({ task, accountId, apiToken, model, executeTool, confirmTool, axonContext, onEvent = () => {} }) {
+  const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+  // Contexto de Axon Studio leído en vivo de Drive (Fase 1.5) — mensaje de
+  // sistema aparte, nunca mezclado dentro del SYSTEM_PROMPT fijo, para que
+  // quede claro en el transcript qué es comportamiento fijo del agente y
+  // qué es contexto externo que puede cambiar sesión a sesión.
+  if (axonContext) {
+    messages.push({
+      role: 'system',
+      content: `CONTEXTO DE AXON STUDIO (leído en vivo de Google Drive):\n\n${axonContext}`,
+    });
+  }
+  messages.push({ role: 'user', content: task });
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     let response;

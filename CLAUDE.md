@@ -32,14 +32,30 @@ usa Kimi, usa Qwen 3.8 27B**.
 
 ## Prioridades activas en este proyecto
 
-- **Cierre de ciclo pendiente**: pruebas de las 3 tareas reales end-to-end
-  (crear archivo, editar archivo existente, correr comando y leer su
-  resultado) documentadas como evidencia, y reporte a Vance para auditoría
-  — no se declara "terminado" sin ese dictamen (Enmienda-2, vigente).
+- **Fase 1.5 en curso** (brief: "Atlas-Brief-AxonInterno-ForgeQwen-Fase1_5-
+  ContextoDriveCloudflareGithub-05Sep2026"): acceso técnico a GitHub
+  (`gh`), Cloudflare (`wrangler`) y Google Drive (`rclone`), todo vía
+  `run_bash` reutilizando esas 3 CLIs oficiales — no se construyen clientes
+  de API propios. Mecanismo de contexto de Axon (`src/context/
+  axonProtocol.js`) construido y probado, pero **sin conectar a ningún
+  documento real todavía**: el brief pedía apuntar a
+  "PROTOCOLO-MAESTRO-Axon-Studio", que vive en una carpeta de Drive
+  marcada `OBSOLETO_...` desde el 26-ago — pendiente que Dewey/Atlas
+  confirmen la fuente vigente antes de configurar `driveRemote`/
+  `protocolPath` en ningún `~/.forge-qwen/config.json` real.
+- **Cierre de ciclo pendiente (Enmienda-2, Vance)**: reporte de evidencia
+  de esta fase entregado a Vance (05_Infraestructura_Tecnica en Drive) —
+  no se declara "terminado" sin su dictamen. Nota de alcance ya
+  documentada ahí: la prueba de `gh` real (commit+push) no se pudo hacer
+  vía `gh` mismo desde este sandbox de desarrollo porque su GitHub App de
+  sesión bloquea llamadas generales a la API (`gh api ... ` → "GitHub
+  access is not enabled for this session") — se probó el mecanismo
+  equivalente con `git` directo, que sí funciona igual en este entorno y
+  en la laptop real de Jesús.
 - Fase 2 (versión web/Worker accesible desde celular): brief aparte,
-  pendiente de que Vance apruebe esta Opción 1 y Jesús la valide en uso
-  real. La separación lógica-agente / capa-ejecución en este código ya está
-  pensada para reutilizarse ahí sin reescribir desde cero.
+  pendiente de que Vance apruebe las fases anteriores y Jesús las valide en
+  uso real. La separación lógica-agente / capa-ejecución en este código ya
+  está pensada para reutilizarse ahí sin reescribir desde cero.
 
 ## Reglas de Forge para este repo
 
@@ -56,6 +72,14 @@ usa Kimi, usa Qwen 3.8 27B**.
   razón de ser de este repo como "estándar Axon" reutilizable en vez de
   herramienta de un solo uso.
 - Versionado desde v0.1.0 en adelante, siempre en `package.json`.
+- `forge-qwen-cli` nunca toca ni almacena las credenciales de `gh`,
+  `wrangler` ni `rclone` — cada una vive en su propio archivo de config
+  fuera de este repo y de `~/.forge-qwen/`. No construir wrappers que
+  intercepten o guarden esas credenciales "por conveniencia".
+- No hardcodear ningún `driveRemote`/`protocolPath` de Drive en el código
+  ni en un config de ejemplo hasta que Dewey/Atlas confirmen la fuente
+  vigente del contexto de Axon (ver Prioridades activas, arriba) — apuntar
+  a un documento equivocado sería peor que no tener contexto en absoluto.
 
 ---
 
