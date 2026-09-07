@@ -33,27 +33,54 @@ mensaje de sistema adicional — el equivalente a que Claude Code lea un
 dentro del código: si el documento cambia en Drive, la siguiente tarea ya
 lo recoge solo, sin tocar el repo.
 
-**Pendiente real, sin resolver todavía (05-sep-2026):** el brief original de
-esta fase pedía apuntar a "PROTOCOLO-MAESTRO-Axon-Studio", pero ese
-documento vive en una carpeta de Drive llamada
-`OBSOLETO_00_PROTOCOLO_Axon_Studio_Interno_...` — marcada obsoleta desde el
-26-ago-2026. Conectar el mecanismo a un documento que el propio equipo ya
-señaló como no vigente sería construir la fuente de verdad de este agente
-sobre una base rota desde el día uno. Por eso `driveRemote`/`protocolPath`
-quedan **sin configurar por default** — el mecanismo está construido y
-probado, pero deliberadamente no apunta a ningún documento real hasta que
-Dewey/Atlas confirmen cuál es la fuente vigente (¿la Constitución General
-v5.0? ¿el Protocolo Maestro se mueve fuera de esa carpeta?). Mientras tanto,
-`forge-qwen-cli` simplemente avisa en cada arranque que opera sin contexto
-de Axon — nunca fallará en silencio ni asumirá un documento por su cuenta.
+**Fuente confirmada (07-sep-2026):** el brief original de esta fase pedía
+apuntar a "PROTOCOLO-MAESTRO-Axon-Studio", pero ese documento vivía en una
+carpeta de Drive marcada `OBSOLETO_00_PROTOCOLO_Axon_Studio_Interno_...`.
+Nova confirmó (Nova-Resolucion-ForgeQwenCLI-ContextoAxon-05Sep2026) que esa
+carpeta es un sistema paralelo abandonado, y que la fuente real y vigente
+es:
 
-Configuración (una vez resuelto lo anterior):
+- **Documento:** `Axon-Constitucion-General-v5_0.md` (Google Doc nativo)
+- **Ubicación:** carpeta `07_Constituciones` dentro de "Axon Studio –
+  Interno" en el Drive de `jesus.leal.kemm@gmail.com`
+
+Probado end-to-end contra el documento real el 07-sep-2026 (18,047
+caracteres leídos correctamente vía `loadAxonContext()`, la misma función
+que usa el CLI en producción).
+
+### Configuración de `rclone` — gotchas reales encontrados en la prueba
+
+1. **El `client_id` compartido de rclone para Google Drive está siendo
+   retirado por Google durante 2026** — con él, la autenticación falla con
+   `401 Invalid Credentials` en cuanto el access token expira, aunque el
+   `refresh_token` sea válido. Hay que crear un `client_id`/`client_secret`
+   propios en Google Cloud Console (Desktop app, API de Drive habilitada,
+   pantalla de consentimiento con tu correo como usuario de prueba — no
+   hace falta publicarla) y pasarlos a `rclone authorize`:
+   ```bash
+   rclone authorize "drive" --drive-client-id="TU_CLIENT_ID" --drive-client-secret="TU_CLIENT_SECRET"
+   ```
+2. El documento es un **Google Doc nativo**, no un archivo de texto plano —
+   rclone necesita `export_formats=txt` en el remote para poder leerlo con
+   `cat`, y el nombre que verás listado será
+   `Axon-Constitucion-General-v5_0.md.txt` (rclone agrega la extensión de
+   exportación al nombre original) — ese es el `protocolPath` real a usar,
+   no el nombre sin `.txt`.
+3. Resolver una ruta por nombre completo ("Axon Studio –
+   Interno/07_Constituciones/...") puede ser lento si rclone tiene que
+   caminar todo el Drive desde la raíz. Usar `root_folder_id` en el remote
+   (apuntando directo a la carpeta "Axon Studio – Interno") lo vuelve
+   instantáneo — pídele el ID de esa carpeta a quien tenga acceso a Drive
+   si vas a repetir este setup.
+
+Configuración con `forge-qwen setup-drive` una vez que ya corriste
+`rclone config` (o `rclone authorize` + `rclone config create`) con lo de
+arriba:
 
 ```bash
-# Requiere rclone ya instalado y configurado con un remote hacia el Drive
-# de Axon (rclone config — hecho una sola vez, fuera de forge-qwen-cli,
-# con la cuenta de Google del usuario).
 forge-qwen setup-drive
+# Nombre del remote de rclone: axon-drive
+# Ruta dentro del remote: 07_Constituciones/Axon-Constitucion-General-v5_0.md.txt
 ```
 
 Si `rclone` no está instalado, no está configurado, el remote no
@@ -234,18 +261,17 @@ inmediato con el mensaje de error de Cloudflare.
   de ciclar indefinidamente.
 - Pensado para uso interactivo de una sola persona a la vez (no hay cola de
   tareas ni concurrencia).
-- El contexto de Axon Studio (Fase 1.5) **no está conectado a ningún
-  documento real todavía** — ver sección "Contexto de Axon Studio" arriba,
-  pendiente de que Dewey/Atlas confirmen la fuente vigente.
-- La integración con `gh`/`wrangler`/`rclone` no se probó end-to-end contra
-  cuentas reales de producción desde el entorno de desarrollo de este
-  repo (sandbox en la nube sin esas 3 CLIs autenticables de forma
-  interactiva) — se probó el mecanismo completo con equivalentes reales
-  donde fue posible (`rclone` con un remote local en vez de Drive real,
-  `git` en vez de `gh` porque el sandbox de desarrollo bloquea llamadas
-  generales de la API de GitHub vía `gh`). Ver el reporte de evidencia en
-  Drive para el detalle exacto de qué se probó y qué queda pendiente de
-  probar en la laptop real de Jesús.
+- El contexto de Axon Studio (Fase 1.5) ya se probó end-to-end contra el
+  documento real de Drive (ver sección "Contexto de Axon Studio" arriba) —
+  pero requiere un `client_id`/`client_secret` propios de Google Cloud
+  (el compartido de rclone se está retirando durante 2026), no viene
+  configurado por default en un `~/.forge-qwen/config.json` nuevo.
+- `gh` no se pudo probar completo desde el entorno de desarrollo de este
+  repo (sandbox en la nube cuya GitHub App bloquea llamadas generales de
+  API vía `gh`) — se probó el mecanismo equivalente con `git` directo, que
+  usa el mismo protocolo por debajo y sí funciona igual en la laptop real
+  de Jesús con `gh auth login` personal. Ver el reporte de evidencia en
+  Drive para el detalle exacto.
 
 ## Estructura del proyecto
 
